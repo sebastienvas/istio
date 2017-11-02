@@ -26,6 +26,9 @@ endif
 setup:
 	@[[ -f pilot/platform/kube/config ]] || ln -s ~/.kube/config pilot/platform/kube/
 
+check:
+	echo 'To be added'
+
 build: setup
 	@bazel $(BAZEL_STARTUP_ARGS) build $(BAZEL_BUILD_ARGS) //...
 
