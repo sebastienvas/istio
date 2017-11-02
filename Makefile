@@ -24,7 +24,7 @@ ifeq ($(detected_OS),Darwin)  # Mac OS X
 endif
 
 setup:
-	@ln -s ~/.kube/config pilot/platform/kube/
+	@[[ -f pilot/platform/kube/config ]] || ln -s ~/.kube/config pilot/platform/kube/
 
 build: setup
 	@bazel $(BAZEL_STARTUP_ARGS) build $(BAZEL_BUILD_ARGS) //...
@@ -32,7 +32,7 @@ build: setup
 clean:
 	@bazel clean
 
-test:
+test: setup
 	@bazel $(BAZEL_STARTUP_ARGS) test $(BAZEL_TEST_ARGS) //...
 
 artifacts:
