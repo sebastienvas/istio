@@ -15,18 +15,16 @@
 package framework
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/golang/sync/errgroup"
 
 	"istio.io/istio/pkg/log"
 	"istio.io/istio/tests/util"
@@ -141,6 +139,16 @@ func newKubeInfo(tmpDir, runID, baseVersion string) (*KubeInfo, error) {
 	}, nil
 }
 
+func checkIngress(ingressUrl string) error {
+	// In order to check the ingress, we will try to create a connection
+	conn, err := net.Dial("tcp", ingressUrl)
+	if err != nil {
+		return err
+	}
+	conn.Close()
+	return nil
+}
+
 // Setup set up Kubernetes prerequest for tests
 func (k *KubeInfo) Setup() error {
 	log.Info("Setting up kubeInfo")
@@ -180,7 +188,7 @@ func (k *KubeInfo) Setup() error {
 		}
 
 	}
-	return nil
+	return checkIngress(k.Ingress + ":80")
 }
 
 // Teardown clean up everything created by setup
@@ -336,33 +344,7 @@ func (k *KubeInfo) deployIstio() error {
 			return err
 		}
 	}
-
-	// wait for istio-system deployments to be fully rolled out before proceeding
-	deployments, err := util.ShellMuteOutput("kubectl -n %s get deployment -o name", k.Namespace)
-	if err != nil {
-		return fmt.Errorf("could not list deployments in namespace %q", k.Namespace)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), maxDeploymentRolloutTime)
-	defer cancel()
-	g, ctx := errgroup.WithContext(ctx)
-	for _, deployment := range strings.Fields(deployments) {
-		g.Go(func() error {
-			errc := make(chan error)
-			go func() {
-				if _, err := util.ShellMuteOutput("kubectl -n %s rollout status %s", k.Namespace, deployment); err != nil {
-					errc <- fmt.Errorf("%s in namespace %s failed", deployment, k.Namespace)
-				}
-				errc <- nil
-			}()
-			select {
-			case err := <-errc:
-				return err
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		})
-	}
-	return g.Wait()
+	return util.CheckDeployments(k.Namespace, maxDeploymentRolloutTime)
 }
 
 func updateInjectImage(name, module, hub, tag string, content []byte) []byte {
